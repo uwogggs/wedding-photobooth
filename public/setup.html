@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Wedding Photobooth — QR Code Setup</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Georgia', serif;
+      background: #fdf6f0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .setup-card {
+      background: white;
+      border-radius: 20px;
+      padding: 40px;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.1);
+      text-align: center;
+      max-width: 520px;
+      width: 100%;
+    }
+    .setup-card h1 {
+      font-size: 1.8em;
+      color: #8b6914;
+      font-weight: 400;
+      margin-bottom: 8px;
+    }
+    .names { font-size: 1.3em; color: #d4a853; margin-bottom: 4px; }
+    .date { font-size: 0.9em; color: #999; margin-bottom: 24px; }
+
+    .qr-container {
+      background: white;
+      padding: 16px;
+      border-radius: 12px;
+      display: inline-block;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+      margin-bottom: 20px;
+    }
+    .qr-container img { width: 250px; height: 250px; }
+
+    .instruction {
+      font-size: 1em;
+      color: #4a3728;
+      margin-bottom: 8px;
+      text-align: left;
+      max-width: 320px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .instruction .step {
+      display: inline-block;
+      width: 24px;
+      height: 24px;
+      line-height: 24px;
+      border-radius: 50%;
+      background: #d4a853;
+      color: white;
+      font-size: 12px;
+      margin-right: 6px;
+      text-align: center;
+    }
+
+    .url-display {
+      margin-top: 16px;
+      padding: 10px 16px;
+      background: #f5f0e8;
+      border-radius: 8px;
+      font-size: 0.95em;
+      color: #8b6914;
+      word-break: break-all;
+      font-weight: bold;
+    }
+
+    .links {
+      margin-top: 20px;
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .links a {
+      padding: 8px 16px;
+      border: 1px solid #d4a853;
+      border-radius: 20px;
+      color: #8b6914;
+      text-decoration: none;
+      font-size: 0.85em;
+    }
+    .links a:hover { background: #d4a853; color: white; }
+
+    /* ── IP Override Section ── */
+    .ip-section {
+      margin-top: 24px;
+      padding-top: 20px;
+      border-top: 1px solid #e8d5b8;
+    }
+    .ip-section h3 {
+      font-size: 0.95em;
+      color: #666;
+      font-weight: 400;
+      margin-bottom: 12px;
+    }
+    .ip-row {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .ip-input {
+      padding: 8px 12px;
+      border: 2px solid #e8d5b8;
+      border-radius: 8px;
+      font-size: 14px;
+      font-family: inherit;
+      width: 180px;
+      text-align: center;
+    }
+    .ip-input:focus { border-color: #d4a853; outline: none; }
+    .ip-btn {
+      padding: 8px 16px;
+      background: #d4a853;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 14px;
+    }
+    .ip-btn:hover { background: #b8960c; }
+    .detected-ip {
+      font-size: 0.8em;
+      color: #999;
+      margin-top: 8px;
+    }
+
+    /* ── Troubleshooting ── */
+    .troubleshoot {
+      margin-top: 20px;
+      padding: 16px;
+      background: #fff8f0;
+      border-radius: 10px;
+      border: 1px solid #f0d78c;
+      text-align: left;
+      font-size: 0.85em;
+      color: #666;
+      line-height: 1.6;
+    }
+    .troubleshoot summary {
+      cursor: pointer;
+      font-weight: bold;
+      color: #8b6914;
+    }
+    .troubleshoot code {
+      background: #f5f0e8;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+
+    .print-btn {
+      margin-top: 20px;
+      padding: 12px 32px;
+      background: linear-gradient(135deg, #d4a853, #b8960c);
+      color: white;
+      border: none;
+      border-radius: 30px;
+      font-size: 16px;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    @media print {
+      .links, .print-btn, .url-display, .ip-section, .troubleshoot { display: none; }
+      .setup-card { box-shadow: none; border: 2px solid #d4a853; }
+    }
+  </style>
+</head>
+<body>
+  <div class="setup-card">
+    <div class="names" id="coupleNames">Wedding Photobooth</div>
+    <h1>📸 Scan to Take a Photo!</h1>
+    <div class="date" id="weddingDate"></div>
+
+    <div class="qr-container">
+      <img id="qrImage" alt="QR Code">
+    </div>
+
+    <div class="instruction"><span class="step">1</span> Open your phone camera</div>
+    <div class="instruction"><span class="step">2</span> Point at this QR code</div>
+    <div class="instruction"><span class="step">3</span> Accept the certificate warning</div>
+    <div class="instruction"><span class="step">4</span> Take a selfie — it uploads automatically!</div>
+
+    <div class="url-display" id="urlDisplay"></div>
+
+    <div class="links">
+      <a href="/gallery.html">🖼️ View Gallery</a>
+      <a href="/slideshow.html">📺 Slideshow</a>
+    </div>
+
+    <!-- IP Override -->
+    <div class="ip-section">
+      <h3>Wrong IP? Override it:</h3>
+      <div class="ip-row">
+        <input type="text" class="ip-input" id="ipInput" placeholder="192.168.x.x">
+        <button class="ip-btn" onclick="updateQr()">Update QR</button>
+      </div>
+      <div class="detected-ip" id="detectedIp"></div>
+    </div>
+
+    <!-- Troubleshooting -->
+    <details class="troubleshoot">
+      <summary>🔧 Troubleshooting</summary>
+      <br>
+      <p><b>Camera doesn't work?</b> You MUST use the <b>HTTPS</b> link (port 3004).<br>
+        HTTP (port 3003) does not allow camera access on phones.</p>
+      <br>
+      <p><b>Certificate warning?</b> This is normal — tap <b>Advanced</b> → <b>Proceed</b>.<br>
+        The self-signed cert is safe for a local wedding network.</p>
+      <br>
+      <p><b>QR code shows wrong IP?</b></p>
+      <ol style="margin: 8px 0 0 20px;">
+        <li>Find your IP: open <b>Command Prompt</b> → type <code>ipconfig</code></li>
+        <li>Look for <b>Wireless LAN adapter Wi-Fi</b> → <b>IPv4 Address</b></li>
+        <li>Type it in the box above and click <b>Update QR</b></li>
+        <li>Or restart the server with: <code>HOST_IP=192.168.x.x node server.js</code></li>
+      </ol>
+      <br>
+      <p><b>Phone can't connect?</b></p>
+      <ol style="margin: 8px 0 0 20px;">
+        <li>Phone and laptop must be on the <b>same WiFi network</b></li>
+        <li>Run this in admin PowerShell to open the firewall:<br>
+          <code>netsh advfirewall firewall add rule name="Wedding" dir=in action=allow protocol=TCP localport=3003-3004</code></li>
+        <li>Disable Windows Firewall temporarily if still blocked</li>
+      </ol>
+    </details>
+
+    <button class="print-btn" onclick="window.print()">🖨️ Print This Page</button>
+  </div>
+
+  <script>
+    let currentHttpsUrl = '';
+
+    // Load config
+    fetch('/api/config')
+      .then(r => r.json())
+      .then(cfg => {
+        document.getElementById('coupleNames').textContent = cfg.coupleNames || '';
+        document.getElementById('weddingDate').textContent = cfg.weddingDate || '';
+        document.getElementById('detectedIp').textContent = `Auto-detected IP: ${cfg.hostIp}`;
+        document.getElementById('ipInput').placeholder = cfg.hostIp;
+      });
+
+    // Load QR code
+    function loadQr(customIp) {
+      const url = customIp
+        ? `/api/qrcode?ip=${encodeURIComponent(customIp)}`
+        : '/api/qrcode';
+
+      fetch(url)
+        .then(r => r.json())
+        .then(data => {
+          document.getElementById('qrImage').src = data.qr;
+          currentHttpsUrl = data.url;
+          document.getElementById('urlDisplay').textContent = data.url;
+        });
+    }
+
+    loadQr();
+
+    // Manual IP override
+    function updateQr() {
+      const ip = document.getElementById('ipInput').value.trim();
+      if (ip) {
+        loadQr(ip);
+      }
+    }
+
+    // Allow Enter key in IP input
+    document.getElementById('ipInput').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') updateQr();
+    });
+  </script>
+</body>
+</html>

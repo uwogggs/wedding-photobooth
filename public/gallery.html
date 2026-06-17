@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Wedding Gallery 💒</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Georgia', serif;
+      background: linear-gradient(135deg, #fdf6f0 0%, #f5e6d3 50%, #fdf6f0 100%);
+      min-height: 100vh;
+      color: #4a3728;
+    }
+
+    /* ── Header ── */
+    .header {
+      text-align: center;
+      padding: 30px 16px 20px;
+      background: linear-gradient(180deg, rgba(253,246,240,1), rgba(253,246,240,0.8));
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .header h1 {
+      font-size: 1.8em;
+      font-weight: 400;
+      color: #8b6914;
+      letter-spacing: 2px;
+    }
+    .header .hashtag {
+      font-size: 0.9em;
+      color: #b8960c;
+      margin-top: 4px;
+      font-style: italic;
+    }
+    .header .count {
+      font-size: 0.85em;
+      color: #999;
+      margin-top: 8px;
+    }
+
+    /* ── Controls ── */
+    .controls {
+      text-align: center;
+      padding: 0 16px 16px;
+    }
+    .controls button {
+      padding: 10px 24px;
+      border: 2px solid #d4a853;
+      background: transparent;
+      color: #8b6914;
+      border-radius: 30px;
+      font-family: inherit;
+      font-size: 14px;
+      cursor: pointer;
+      margin: 4px;
+      transition: all 0.2s;
+    }
+    .controls button:hover {
+      background: #d4a853;
+      color: white;
+    }
+
+    /* ── Grid ── */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 8px;
+      padding: 0 8px 24px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .grid-item {
+      position: relative;
+      aspect-ratio: 3/4;
+      border-radius: 8px;
+      overflow: hidden;
+      cursor: pointer;
+      transition: transform 0.2s;
+    }
+    .grid-item:hover { transform: scale(1.02); }
+    .grid-item img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .grid-item .name {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      padding: 24px 8px 6px;
+      background: linear-gradient(transparent, rgba(0,0,0,0.6));
+      color: white;
+      font-size: 11px;
+      text-align: center;
+    }
+
+    .grid-item .download-btn {
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: rgba(0,0,0,0.5);
+      border: none;
+      color: white;
+      font-size: 14px;
+      cursor: pointer;
+      display: none;
+      align-items: center;
+      justify-content: center;
+    }
+    .grid-item:hover .download-btn { display: flex; }
+
+    /* ── Lightbox ── */
+    .lightbox {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.95);
+      z-index: 100;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+    }
+    .lightbox.active { display: flex; }
+
+    .lightbox img {
+      max-width: 90vw;
+      max-height: 80vh;
+      border-radius: 8px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    }
+
+    .lightbox-close {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.15);
+      border: none;
+      color: white;
+      font-size: 20px;
+      cursor: pointer;
+    }
+
+    .lightbox-download {
+      margin-top: 16px;
+      padding: 10px 24px;
+      background: linear-gradient(135deg, #d4a853, #b8960c);
+      color: white;
+      border: none;
+      border-radius: 30px;
+      font-family: inherit;
+      font-size: 14px;
+      cursor: pointer;
+    }
+
+    .lightbox-nav {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.15);
+      border: none;
+      color: white;
+      font-size: 24px;
+      cursor: pointer;
+    }
+    .lightbox-nav.prev { left: 16px; }
+    .lightbox-nav.next { right: 16px; }
+
+    /* ── Empty state ── */
+    .empty {
+      text-align: center;
+      padding: 60px 16px;
+      color: #999;
+    }
+    .empty .emoji { font-size: 3em; margin-bottom: 16px; }
+    .empty .text { font-size: 1.2em; }
+
+    /* ── Footer ── */
+    .footer {
+      text-align: center;
+      padding: 24px;
+      color: #b8960c;
+      font-size: 0.85em;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <h1 id="coupleNames">Wedding Gallery</h1>
+    <div class="hashtag" id="hashtag"></div>
+    <div class="count" id="photoCount">Loading...</div>
+  </div>
+
+  <div class="controls">
+    <button onclick="downloadAll()">⬇️ Download All</button>
+    <button onclick="shareLink()">📤 Share Link</button>
+  </div>
+
+  <div class="grid" id="grid"></div>
+
+  <div class="empty" id="emptyState" style="display:none;">
+    <div class="emoji">📸</div>
+    <div class="text">No photos yet</div>
+  </div>
+
+  <!-- Lightbox -->
+  <div class="lightbox" id="lightbox">
+    <button class="lightbox-close" onclick="closeLightbox()">✕</button>
+    <button class="lightbox-nav prev" onclick="navigateLightbox(-1)">‹</button>
+    <img id="lightboxImage" alt="Photo">
+    <button class="lightbox-nav next" onclick="navigateLightbox(1)">›</button>
+    <button class="lightbox-download" id="lightboxDownload">⬇️ Download</button>
+  </div>
+
+  <div class="footer">
+    💕 Made with love 💕
+  </div>
+
+  <script>
+    let photos = [];
+    let lightboxIndex = 0;
+
+    // Load config
+    fetch('/api/config')
+      .then(r => r.json())
+      .then(cfg => {
+        document.getElementById('coupleNames').textContent = cfg.coupleNames || 'Wedding Gallery';
+        document.getElementById('hashtag').textContent = cfg.hashtag || '';
+      });
+
+    // Load photos
+    async function loadPhotos() {
+      try {
+        const res = await fetch('/api/photos');
+        const data = await res.json();
+        photos = data.photos || [];
+
+        document.getElementById('photoCount').textContent =
+          `${photos.length} photo${photos.length !== 1 ? 's' : ''}`;
+
+        const grid = document.getElementById('grid');
+        const emptyState = document.getElementById('emptyState');
+
+        if (photos.length === 0) {
+          grid.style.display = 'none';
+          emptyState.style.display = 'block';
+          return;
+        }
+
+        grid.style.display = 'grid';
+        emptyState.style.display = 'none';
+
+        grid.innerHTML = photos.map((photo, i) => {
+          const name = photo.filename.split('_')[0].replace(/_/g, ' ');
+          return `
+            <div class="grid-item" onclick="openLightbox(${i})">
+              <img src="${photo.url}" alt="${name}" loading="lazy">
+              <div class="name">${name !== 'guest' ? name : ''}</div>
+              <button class="download-btn" onclick="event.stopPropagation(); downloadPhoto('${photo.url}', '${photo.filename}')">⬇️</button>
+            </div>
+          `;
+        }).join('');
+      } catch (err) {
+        console.error('Failed to load photos:', err);
+      }
+    }
+
+    // Lightbox
+    function openLightbox(index) {
+      lightboxIndex = index;
+      updateLightbox();
+      document.getElementById('lightbox').classList.add('active');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeLightbox() {
+      document.getElementById('lightbox').classList.remove('active');
+      document.body.style.overflow = '';
+    }
+
+    function navigateLightbox(dir) {
+      lightboxIndex = (lightboxIndex + dir + photos.length) % photos.length;
+      updateLightbox();
+    }
+
+    function updateLightbox() {
+      const photo = photos[lightboxIndex];
+      document.getElementById('lightboxImage').src = photo.url;
+      document.getElementById('lightboxDownload').onclick = () =>
+        downloadPhoto(photo.url, photo.filename);
+    }
+
+    // Keyboard navigation
+    document.addEventListener('keydown', (e) => {
+      if (!document.getElementById('lightbox').classList.contains('active')) return;
+      if (e.key === 'Escape') closeLightbox();
+      if (e.key === 'ArrowLeft') navigateLightbox(-1);
+      if (e.key === 'ArrowRight') navigateLightbox(1);
+    });
+
+    // Download
+    function downloadPhoto(url, filename) {
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+
+    async function downloadAll() {
+      for (const photo of photos) {
+        downloadPhoto(photo.url, photo.filename);
+        await new Promise(r => setTimeout(r, 300)); // stagger downloads
+      }
+    }
+
+    // Share
+    function shareLink() {
+      const url = window.location.href;
+      if (navigator.share) {
+        navigator.share({ title: 'Wedding Photo Gallery', url });
+      } else {
+        navigator.clipboard.writeText(url).then(() => {
+          alert('Link copied to clipboard!');
+        });
+      }
+    }
+
+    // Auto-refresh every 10 seconds
+    loadPhotos();
+    setInterval(loadPhotos, 10000);
+  </script>
+</body>
+</html>

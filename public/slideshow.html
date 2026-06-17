@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Wedding Slideshow 💒</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #0a0a0a;
+      height: 100vh;
+      overflow: hidden;
+      font-family: 'Georgia', serif;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ── */
+    .header {
+      text-align: center;
+      padding: 20px;
+      background: linear-gradient(180deg, rgba(0,0,0,0.8), transparent);
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 10;
+    }
+    .header h1 {
+      font-size: 2.5em;
+      font-weight: 400;
+      color: #d4a853;
+      letter-spacing: 4px;
+      text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+    }
+    .header .date {
+      font-size: 1.1em;
+      color: #e8d5b8;
+      margin-top: 4px;
+    }
+    .header .hashtag {
+      font-size: 0.9em;
+      color: #b8960c;
+      margin-top: 8px;
+      font-style: italic;
+    }
+
+    /* ── Photo display ── */
+    .photo-container {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+
+    .photo {
+      max-width: 90vw;
+      max-height: 80vh;
+      border-radius: 8px;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.5);
+      opacity: 0;
+      transition: opacity 1s ease-in-out;
+      position: absolute;
+    }
+    .photo.active {
+      opacity: 1;
+    }
+
+    /* ── Guest name ── */
+    .guest-name {
+      position: absolute;
+      bottom: 40px;
+      left: 0;
+      right: 0;
+      text-align: center;
+      color: white;
+      font-size: 1.4em;
+      text-shadow: 0 2px 8px rgba(0,0,0,0.7);
+      opacity: 0;
+      transition: opacity 0.8s ease-in-out;
+    }
+    .guest-name.active { opacity: 1; }
+
+    /* ── Photo count ── */
+    .photo-count {
+      position: absolute;
+      bottom: 16px;
+      right: 24px;
+      color: rgba(255,255,255,0.4);
+      font-size: 0.85em;
+      z-index: 10;
+    }
+
+    /* ── Waiting state ── */
+    .waiting {
+      text-align: center;
+      color: #d4a853;
+    }
+    .waiting .emoji { font-size: 4em; margin-bottom: 20px; }
+    .waiting .text { font-size: 1.5em; }
+    .waiting .sub { font-size: 1em; color: #888; margin-top: 8px; }
+
+    /* ── QR corner ── */
+    .qr-corner {
+      position: absolute;
+      bottom: 20px;
+      left: 20px;
+      background: white;
+      padding: 8px;
+      border-radius: 8px;
+      z-index: 10;
+      opacity: 0.7;
+      transition: opacity 0.3s;
+    }
+    .qr-corner:hover { opacity: 1; }
+    .qr-corner img { width: 100px; height: 100px; }
+    .qr-corner .label {
+      text-align: center;
+      font-size: 10px;
+      color: #333;
+      margin-top: 4px;
+    }
+
+    /* ── Footer ── */
+    .footer {
+      text-align: center;
+      padding: 12px;
+      background: linear-gradient(0deg, rgba(0,0,0,0.8), transparent);
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      z-index: 10;
+    }
+    .footer .hearts {
+      font-size: 1.2em;
+      color: #d4a853;
+      letter-spacing: 8px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <div class="header">
+    <h1 id="coupleNames">Wedding Photobooth</h1>
+    <div class="date" id="weddingDate"></div>
+    <div class="hashtag" id="hashtag"></div>
+  </div>
+
+  <!-- Photo display -->
+  <div class="photo-container" id="photoContainer">
+    <div class="waiting" id="waitingState">
+      <div class="emoji">📸</div>
+      <div class="text">Waiting for photos...</div>
+      <div class="sub">Scan the QR code to take a photo!</div>
+    </div>
+    <div class="guest-name" id="guestName"></div>
+  </div>
+
+  <!-- Photo count -->
+  <div class="photo-count" id="photoCount"></div>
+
+  <!-- QR code corner -->
+  <div class="qr-corner" id="qrCorner">
+    <img id="qrImage" alt="QR Code">
+    <div class="label">Scan to take a photo!</div>
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    <div class="hearts">💕 💒 💕</div>
+  </div>
+
+  <script>
+    let photos = [];
+    let currentIndex = -1;
+    let slideshowTimer = null;
+    const INTERVAL = 6000; // 6 seconds per photo
+    const container = document.getElementById('photoContainer');
+    const waitingState = document.getElementById('waitingState');
+    const guestNameEl = document.getElementById('guestName');
+    const photoCountEl = document.getElementById('photoCount');
+
+    // Load config
+    fetch('/api/config')
+      .then(r => r.json())
+      .then(cfg => {
+        document.getElementById('coupleNames').textContent = cfg.coupleNames || 'Wedding Photobooth';
+        document.getElementById('weddingDate').textContent = cfg.weddingDate || '';
+        document.getElementById('hashtag').textContent = cfg.hashtag || '';
+      });
+
+    // Load QR code
+    fetch('/api/qrcode')
+      .then(r => r.json())
+      .then(data => {
+        document.getElementById('qrImage').src = data.qr;
+      });
+
+    // Fetch photos
+    async function fetchPhotos() {
+      try {
+        const res = await fetch('/api/photos');
+        const data = await res.json();
+        const newPhotos = data.photos || [];
+
+        if (newPhotos.length !== photos.length) {
+          photos = newPhotos;
+          photoCountEl.textContent = `${photos.length} photo${photos.length !== 1 ? 's' : ''}`;
+
+          if (photos.length > 0 && currentIndex === -1) {
+            waitingState.style.display = 'none';
+            showNextPhoto();
+            startSlideshow();
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch photos:', err);
+      }
+    }
+
+    function showNextPhoto() {
+      if (photos.length === 0) return;
+
+      currentIndex = (currentIndex + 1) % photos.length;
+      const photo = photos[currentIndex];
+
+      // Remove old photo
+      const oldPhoto = container.querySelector('.photo.active');
+      if (oldPhoto) {
+        oldPhoto.classList.remove('active');
+        setTimeout(() => oldPhoto.remove(), 1000);
+      }
+
+      // Create new photo
+      const img = document.createElement('img');
+      img.className = 'photo';
+      img.src = photo.url;
+      img.onload = () => {
+        img.classList.add('active');
+      };
+      container.insertBefore(img, guestNameEl);
+
+      // Show guest name
+      const name = photo.filename.split('_')[0].replace(/_/g, ' ');
+      guestNameEl.textContent = name !== 'guest' ? `📸 ${name}` : '';
+      guestNameEl.classList.add('active');
+      setTimeout(() => guestNameEl.classList.remove('active'), INTERVAL - 1000);
+    }
+
+    function startSlideshow() {
+      if (slideshowTimer) clearInterval(slideshowTimer);
+      slideshowTimer = setInterval(showNextPhoto, INTERVAL);
+    }
+
+    // Poll for new photos every 5 seconds
+    fetchPhotos();
+    setInterval(fetchPhotos, 5000);
+
+    // Click to toggle QR visibility
+    document.getElementById('qrCorner').addEventListener('click', () => {
+      document.getElementById('qrCorner').style.display = 'none';
+    });
+
+    // Double-click to show QR again
+    document.body.addEventListener('dblclick', () => {
+      document.getElementById('qrCorner').style.display = 'block';
+    });
+
+    // Fullscreen on double-click the header
+    document.querySelector('.header').addEventListener('click', () => {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(() => {});
+      } else {
+        document.exitFullscreen();
+      }
+    });
+  </script>
+</body>
+</html>
