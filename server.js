@@ -21,7 +21,7 @@ const PHOTOS_DIR = path.join(__dirname, 'photos');
 
 // ── PIN Protection ──────────────────────────────────────────────
 const ACCESS_PIN = process.env.ACCESS_PIN || '111283';
-const SESSION_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
+const SESSION_SECRET = process.env.SESSION_SECRET || 'wedding-pb-2026-static-secret';
 const AUTH_COOKIE = '__session';
 const SESSION_TTL = 24 * 60 * 60 * 1000; // 24 hours
 
@@ -88,6 +88,7 @@ function detectHostIp() {
 const HOST_IP = detectHostIp();
 
 // ── Middleware ───────────────────────────────────────────────────
+app.set('trust proxy', 1); // Render uses a reverse proxy
 app.use(cors());
 
 // Cookie parser (simple)
@@ -113,7 +114,8 @@ app.post('/api/verify-pin', (req, res) => {
     res.cookie(AUTH_COOKIE, token, {
       httpOnly: true,
       maxAge: SESSION_TTL,
-      sameSite: 'lax'
+      sameSite: 'lax',
+      secure: true
     });
     return res.json({ success: true });
   }
