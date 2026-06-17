@@ -19,6 +19,7 @@ const WEDDING_DATE = '2026';
 const WEDDING_HASHTAG = '#NetrustXmasParty2026';
 const PHOTOS_DIR = path.join(__dirname, 'photos');
 const TASKS_FILE = path.join(__dirname, 'tasks.json');
+const CRON_FILE = path.join(__dirname, 'cron.json');
 
 // ── PIN Zones ───────────────────────────────────────────────────
 const ZONES = {
@@ -117,6 +118,22 @@ function loadTasks() {
 
 function saveTasks(tasks) {
   fs.writeFileSync(TASKS_FILE, JSON.stringify(tasks, null, 2));
+}
+
+// ── Cron Store ──────────────────────────────────────────────────
+function loadCron() {
+  try {
+    if (fs.existsSync(CRON_FILE)) {
+      return JSON.parse(fs.readFileSync(CRON_FILE, 'utf8'));
+    }
+  } catch (err) {
+    console.error('Failed to load cron:', err.message);
+  }
+  return [];
+}
+
+function saveCron(jobs) {
+  fs.writeFileSync(CRON_FILE, JSON.stringify(jobs, null, 2));
 }
 
 // ── Middleware ───────────────────────────────────────────────────
@@ -347,79 +364,85 @@ async function hermesRequest(method, endpoint, body) {
   });
 }
 
-app.get('/api/cron', kanbanAuth, async (req, res) => {
-  try {
-    // Use Hermes CLI to get cron jobs
-    const { execSync } = require('child_process');
-    const output = execSync('hermes cron list --json 2>/dev/null || echo "[]"', {
-      timeout: 10000,
-      encoding: 'utf8'
-    });
-    let jobs = [];
-    try { jobs = JSON.parse(output); } catch { jobs = []; }
-    res.json({ jobs: Array.isArray(jobs) ? jobs : [] });
-  } catch (err) {
-    console.error('Cron list error:', err.message);
-    res.json({ jobs: [] });
-  }
+app.get('/api/cron', kanbanAuth, (req, res) => {
+  res.json({ jobs: loadCron() });
 });
 
-app.post('/api/cron', kanbanAuth, async (req, res) => {
-  try {
-    const { name, schedule, prompt, deliver } = req.body;
-    const { execSync } = require('child_process');
-    const args = [
-      'hermes', 'cron', 'create',
-      '--name', JSON.stringify(name),
-      '--schedule', JSON.stringify(schedule),
-      '--prompt', JSON.stringify(prompt)
-    ];
-    if (deliver) args.push('--deliver', deliver);
-    const output = execSync(args.join(' '), { timeout: 15000, encoding: 'utf8' });
-    res.json({ success: true, output });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+app.post('/api/cron', kanbanAuth, (req, res) => {
+  const { name, schedule, description, deliver } = req.body;
+  if (!name || !schedule) return res.status(400).json({ error: 'Name and schedule required' });
+
+  const jobs = loadCron();
+  const job = {
+    job_id: crypto.randomUUID().substring(0, 12),
+    name,
+    schedule,
+    description: description || '',
+    status: 'active',
+    deliver: deliver || 'origin',
+    next_run: null,
+    last_run: null,
+    last_status: null,
+    created_at: new Date().toISOString()
+  };
+  jobs.push(job);
+  saveCron(jobs);
+  res.json({ success: true, job });
 });
 
-app.post('/api/cron/:id/:action', kanbanAuth, async (req, res) => {
-  try {
-    const { id, action } = req.params;
-    if (!['pause', 'resume', 'run'].includes(action)) {
-      return res.status(400).json({ error: 'Invalid action' });
-    }
-    const { execSync } = require('child_process');
-    const output = execSync(`hermes cron ${action} ${id}`, { timeout: 10000, encoding: 'utf8' });
-    res.json({ success: true, output });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+app.put('/api/cron/:id', kanbanAuth, (req, res) => {
+  const jobs = loadCron();
+  const idx = jobs.findIndex(j => j.job_id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: 'Job not found' });
+
+  const { name, schedule, description, deliver, status } = req.body;
+  if (name !== undefined) jobs[idx].name = name;
+  if (schedule !== undefined) jobs[idx].schedule = schedule;
+  if (description !== undefined) jobs[idx].description = description;
+  if (deliver !== undefined) jobs[idx].deliver = deliver;
+  if (status !== undefined) jobs[idx].status = status;
+
+  saveCron(jobs);
+  res.json({ success: true, job: jobs[idx] });
 });
 
-app.put('/api/cron/:id', kanbanAuth, async (req, res) => {
-  try {
-    const { name, schedule, prompt, deliver } = req.body;
-    const { execSync } = require('child_process');
-    const args = ['hermes', 'cron', 'update', req.params.id];
-    if (name) args.push('--name', JSON.stringify(name));
-    if (schedule) args.push('--schedule', JSON.stringify(schedule));
-    if (prompt) args.push('--prompt', JSON.stringify(prompt));
-    if (deliver) args.push('--deliver', deliver);
-    const output = execSync(args.join(' '), { timeout: 15000, encoding: 'utf8' });
-    res.json({ success: true, output });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+app.post('/api/cron/:id/:action', kanbanAuth, (req, res) => {
+  const { id, action } = req.params;
+  const jobs = loadCron();
+  const idx = jobs.findIndex(j => j.job_id === id);
+  if (idx === -1) return res.status(404).json({ error: 'Job not found' });
+
+  if (action === 'pause') {
+    jobs[idx].status = 'paused';
+  } else if (action === 'resume') {
+    jobs[idx].status = 'active';
+  } else if (action === 'run') {
+    jobs[idx].last_run = new Date().toISOString();
+    jobs[idx].last_status = 'triggered';
+  } else {
+    return res.status(400).json({ error: 'Invalid action' });
   }
+
+  saveCron(jobs);
+  res.json({ success: true, job: jobs[idx] });
 });
 
-app.delete('/api/cron/:id', kanbanAuth, async (req, res) => {
-  try {
-    const { execSync } = require('child_process');
-    const output = execSync(`hermes cron remove ${req.params.id}`, { timeout: 10000, encoding: 'utf8' });
-    res.json({ success: true, output });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+app.delete('/api/cron/:id', kanbanAuth, (req, res) => {
+  let jobs = loadCron();
+  const idx = jobs.findIndex(j => j.job_id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: 'Job not found' });
+
+  jobs.splice(idx, 1);
+  saveCron(jobs);
+  res.json({ success: true });
+});
+
+// Sync endpoint — accepts full cron list from external source (e.g. Hermes agent)
+app.post('/api/cron/sync', kanbanAuth, (req, res) => {
+  const { jobs } = req.body;
+  if (!Array.isArray(jobs)) return res.status(400).json({ error: 'jobs array required' });
+  saveCron(jobs);
+  res.json({ success: true, count: jobs.length });
 });
 
 // ── Ensure dirs exist ───────────────────────────────────────────

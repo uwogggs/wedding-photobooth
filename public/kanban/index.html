@@ -399,8 +399,8 @@
         <input type="text" id="cronSchedule" placeholder="e.g. 0 9 * * * or 30m">
       </div>
       <div class="form-group">
-        <label>Prompt / Task</label>
-        <textarea id="cronPrompt" placeholder="What should the agent do?"></textarea>
+        <label>Description</label>
+        <textarea id="cronPrompt" placeholder="What does this job do?"></textarea>
       </div>
       <div class="form-group">
         <label>Deliver to</label>
@@ -504,21 +504,23 @@
       }
 
       container.innerHTML = cronJobs.map(j => {
-        const status = j.enabled !== false ? 'active' : 'paused';
+        const status = j.status || 'active';
+        const statusClass = status === 'active' ? 'active' : status === 'paused' ? 'paused' : 'error';
         return `
           <div class="cron-panel">
             <h3>${escapeHtml(j.name || j.job_id || 'Unnamed')}</h3>
             <div class="cron-job">
               <div>
-                <div class="cron-job-name">${escapeHtml(j.prompt || '').substring(0, 60)}${(j.prompt||'').length > 60 ? '...' : ''}</div>
-                <div class="cron-job-schedule">📅 ${escapeHtml(j.schedule || 'N/A')} &nbsp; <span class="cron-status ${status}"></span> ${status}</div>
+                <div class="cron-job-name">${escapeHtml(j.description || '').substring(0, 60)}${(j.description||'').length > 60 ? '...' : ''}</div>
+                <div class="cron-job-schedule">📅 ${escapeHtml(j.schedule || 'N/A')} &nbsp; <span class="cron-status ${statusClass}"></span> ${status}</div>
+                ${j.last_run ? `<div class="cron-job-schedule">Last: ${new Date(j.last_run).toLocaleString()}</div>` : ''}
               </div>
               <div class="cron-actions">
-                <button class="cron-btn" onclick="toggleCron('${j.job_id}', ${j.enabled === false ? 'true' : 'false'})" title="${j.enabled === false ? 'Resume' : 'Pause'}">
-                  ${j.enabled === false ? '▶️' : '⏸️'}
+                <button class="cron-btn" onclick="toggleCron('${j.job_id}', '${status}')" title="${status === 'paused' ? 'Resume' : 'Pause'}">
+                  ${status === 'paused' ? '▶️' : '⏸️'}
                 </button>
                 <button class="cron-btn" onclick="runCron('${j.job_id}')" title="Run now">🚀</button>
-                <button class="cron-btn" onclick="createTaskFromCron('${j.job_id}', '${escapeHtml(j.name || j.job_id || 'Cron job')}')" title="Create task">📝</button>
+                <button class="cron-btn" onclick="createTaskFromCron('${j.job_id}', '${escapeHtml(j.name || 'Cron job')}')" title="Create task">📝</button>
               </div>
             </div>
           </div>
@@ -632,10 +634,10 @@
     }
 
     // ── Cron Actions ───────────────────────────────────────────
-    async function toggleCron(jobId, resume) {
-      const action = resume ? 'resume' : 'pause';
+    async function toggleCron(jobId, currentStatus) {
+      const action = currentStatus === 'paused' ? 'resume' : 'pause';
       await fetch(`/api/cron/${jobId}/${action}`, { method: 'POST' });
-      toast(`${resume ? '▶️ Resumed' : '⏸️ Paused'} cron job`);
+      toast(`${action === 'resume' ? '▶️ Resumed' : '⏸️ Paused'} cron job`);
       await refreshCron();
     }
 
@@ -663,22 +665,22 @@
       const id = document.getElementById('cronJobId').value;
       const name = document.getElementById('cronName').value.trim();
       const schedule = document.getElementById('cronSchedule').value.trim();
-      const prompt = document.getElementById('cronPrompt').value.trim();
+      const description = document.getElementById('cronPrompt').value.trim();
       const deliver = document.getElementById('cronDeliver').value;
 
-      if (!name || !schedule || !prompt) { toast('❌ All fields required'); return; }
+      if (!name || !schedule || !description) { toast('❌ All fields required'); return; }
 
       if (id) {
         await fetch(`/api/cron/${id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, schedule, prompt, deliver })
+          body: JSON.stringify({ name, schedule, description, deliver })
         });
       } else {
         await fetch('/api/cron', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, schedule, prompt, deliver })
+          body: JSON.stringify({ name, schedule, description, deliver })
         });
       }
       closeCronModal();
