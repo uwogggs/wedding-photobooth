@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kanban Board — Login</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+    }
+    .login-box {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 20px;
+      padding: 3rem 2.5rem;
+      text-align: center;
+      max-width: 400px;
+      width: 90%;
+    }
+    .login-icon { font-size: 3.5rem; margin-bottom: 1rem; }
+    .login-title { font-size: 1.6rem; font-weight: 600; margin-bottom: 0.5rem; }
+    .login-subtitle { font-size: 0.9rem; color: #8888aa; margin-bottom: 2rem; }
+    .pin-input {
+      width: 100%;
+      padding: 1rem;
+      font-size: 1.8rem;
+      text-align: center;
+      letter-spacing: 0.8rem;
+      background: rgba(255,255,255,0.08);
+      border: 2px solid rgba(79,172,254,0.3);
+      border-radius: 12px;
+      color: #fff;
+      outline: none;
+      transition: border-color 0.3s;
+    }
+    .pin-input:focus { border-color: #4facfe; }
+    .pin-input::placeholder { letter-spacing: 0.3rem; font-size: 1rem; color: #555; }
+    .login-btn {
+      width: 100%;
+      padding: 1rem;
+      margin-top: 1.5rem;
+      font-size: 1.1rem;
+      font-weight: 600;
+      background: linear-gradient(135deg, #4facfe, #00f2fe);
+      color: #000;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: opacity 0.3s;
+    }
+    .login-btn:hover { opacity: 0.85; }
+    .login-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .error-msg {
+      color: #f5576c;
+      font-size: 0.9rem;
+      margin-top: 1rem;
+      display: none;
+    }
+    .back-link {
+      display: inline-block;
+      margin-top: 1.5rem;
+      color: #8888aa;
+      text-decoration: none;
+      font-size: 0.9rem;
+      transition: color 0.3s;
+    }
+    .back-link:hover { color: #4facfe; }
+  </style>
+</head>
+<body>
+  <div class="login-box">
+    <div class="login-icon">📋</div>
+    <h1 class="login-title">Kanban Board</h1>
+    <p class="login-subtitle">Enter PIN to access your tasks</p>
+
+    <form id="pinForm">
+      <input type="password" id="pinInput" class="pin-input"
+             maxlength="6" inputmode="numeric" pattern="[0-9]*"
+             placeholder="• • • • • •" autofocus autocomplete="off">
+      <button type="submit" class="login-btn" id="submitBtn">Enter</button>
+    </form>
+
+    <p class="error-msg" id="errorMsg"></p>
+    <a href="/" class="back-link">← Back to Hub</a>
+  </div>
+
+  <script>
+    const form = document.getElementById('pinForm');
+    const pinInput = document.getElementById('pinInput');
+    const errorMsg = document.getElementById('errorMsg');
+    const submitBtn = document.getElementById('submitBtn');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const pin = pinInput.value.trim();
+      if (!pin) return;
+
+      submitBtn.disabled = true;
+      errorMsg.style.display = 'none';
+
+      try {
+        const res = await fetch('/api/verify-pin/kanban', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pin })
+        });
+        const data = await res.json();
+        if (data.success) {
+          window.location.href = '/kanban/';
+        } else {
+          errorMsg.textContent = data.error || 'Incorrect PIN';
+          errorMsg.style.display = 'block';
+          pinInput.value = '';
+          pinInput.focus();
+        }
+      } catch (err) {
+        errorMsg.textContent = 'Connection error — try again';
+        errorMsg.style.display = 'block';
+      }
+      submitBtn.disabled = false;
+    });
+  </script>
+</body>
+</html>

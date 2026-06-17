@@ -18,20 +18,31 @@ const COUPLE_NAMES = 'Netrust Xmas Party';
 const WEDDING_DATE = '2026';
 const WEDDING_HASHTAG = '#NetrustXmasParty2026';
 const PHOTOS_DIR = path.join(__dirname, 'photos');
+const TASKS_FILE = path.join(__dirname, 'tasks.json');
 
-// ── PIN Protection ──────────────────────────────────────────────
-const ACCESS_PIN = process.env.ACCESS_PIN || '111283';
-const SESSION_SECRET = process.env.SESSION_SECRET || 'wedding-pb-2026-static-secret';
-const AUTH_COOKIE = '__session';
+// ── PIN Zones ───────────────────────────────────────────────────
+const ZONES = {
+  photobooth: {
+    pin: process.env.PHOTOBOOTH_PIN || '111283',
+    cookie: '__session_photo'
+  },
+  kanban: {
+    pin: process.env.KANBAN_PIN || '680283',
+    cookie: '__session_kanban'
+  }
+};
+
+const SESSION_SECRET = process.env.SESSION_SECRET || 'jonathan-hub-2026-static-secret';
 const SESSION_TTL = 24 * 60 * 60 * 1000; // 24 hours
 
-function signSession(pin) {
-  const payload = JSON.stringify({ pin: true, ts: Date.now() });
+// ── Session Helpers ─────────────────────────────────────────────
+function signSession(zone) {
+  const payload = JSON.stringify({ zone, ts: Date.now() });
   const hmac = crypto.createHmac('sha256', SESSION_SECRET).update(payload).digest('hex');
   return Buffer.from(payload).toString('base64') + '.' + hmac;
 }
 
-function verifySession(token) {
+function verifySession(token, expectedZone) {
   if (!token) return false;
   const [b64, sig] = token.split('.');
   if (!b64 || !sig) return false;
@@ -40,25 +51,30 @@ function verifySession(token) {
   if (sig !== expected) return false;
   try {
     const data = JSON.parse(payload);
-    if (!data.pin || Date.now() - data.ts > SESSION_TTL) return false;
+    if (!data.zone || data.zone !== expectedZone) return false;
+    if (Date.now() - data.ts > SESSION_TTL) return false;
     return true;
   } catch { return false; }
 }
 
-function authMiddleware(req, res, next) {
-  // Allow login page, login API, and static assets for login
-  const publicPaths = ['/login.html', '/api/verify-pin'];
-  if (publicPaths.includes(req.path)) return next();
+// ── Auth Middleware Factory ──────────────────────────────────────
+function createAuthMiddleware(zoneName) {
+  const zone = ZONES[zoneName];
+  return (req, res, next) => {
+    const publicPaths = [
+      `/${zoneName}/login.html`,
+      `/api/verify-pin/${zoneName}`
+    ];
+    if (publicPaths.includes(req.path)) return next();
 
-  // Check cookie
-  const token = req.cookies && req.cookies[AUTH_COOKIE];
-  if (verifySession(token)) return next();
+    const token = req.cookies && req.cookies[zone.cookie];
+    if (verifySession(token, zoneName)) return next();
 
-  // Not authenticated — redirect to login
-  if (req.path.startsWith('/api/')) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-  return res.redirect('/login.html');
+    if (req.path.startsWith('/api/')) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    return res.redirect(`/${zoneName}/login.html`);
+  };
 }
 
 // ── Auto-detect host IP ─────────────────────────────────────────
@@ -87,11 +103,27 @@ function detectHostIp() {
 
 const HOST_IP = detectHostIp();
 
+// ── Tasks Store ─────────────────────────────────────────────────
+function loadTasks() {
+  try {
+    if (fs.existsSync(TASKS_FILE)) {
+      return JSON.parse(fs.readFileSync(TASKS_FILE, 'utf8'));
+    }
+  } catch (err) {
+    console.error('Failed to load tasks:', err.message);
+  }
+  return [];
+}
+
+function saveTasks(tasks) {
+  fs.writeFileSync(TASKS_FILE, JSON.stringify(tasks, null, 2));
+}
+
 // ── Middleware ───────────────────────────────────────────────────
-app.set('trust proxy', 1); // Render uses a reverse proxy
+app.set('trust proxy', 1);
 app.use(cors());
 
-// Cookie parser (simple)
+// Cookie parser
 app.use((req, _res, next) => {
   req.cookies = {};
   const cookieHeader = req.headers.cookie;
@@ -110,65 +142,77 @@ app.use((req, _res, next) => {
 
 app.use(express.json());
 
-// PIN verification endpoint (before auth middleware)
-app.post('/api/verify-pin', (req, res) => {
+// ── PIN Verification Endpoints (public, before auth) ────────────
+app.post('/api/verify-pin/photobooth', (req, res) => {
   const { pin } = req.body;
-  if (pin === ACCESS_PIN) {
-    const token = signSession(ACCESS_PIN);
-    res.cookie(AUTH_COOKIE, token, {
-      httpOnly: true,
-      maxAge: SESSION_TTL,
-      sameSite: 'lax',
-      secure: true
+  if (pin === ZONES.photobooth.pin) {
+    const token = signSession('photobooth');
+    res.cookie(ZONES.photobooth.cookie, token, {
+      httpOnly: true, maxAge: SESSION_TTL,
+      sameSite: 'lax', secure: true
     });
     return res.json({ success: true });
   }
   return res.json({ success: false, error: 'Incorrect PIN' });
 });
 
-// Auth gate for everything else
-app.use(authMiddleware);
-
-app.use('/photos', express.static(PHOTOS_DIR));
-app.use(express.static(path.join(__dirname, 'public')));
-
-// ── Ensure photos dir exists ────────────────────────────────────
-if (!fs.existsSync(PHOTOS_DIR)) fs.mkdirSync(PHOTOS_DIR, { recursive: true });
-
-// ── Multer (file upload) ────────────────────────────────────────
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, PHOTOS_DIR),
-  filename: (req, file, cb) => {
-    const guest = (req.body.guestName || 'guest').replace(/[^a-zA-Z0-9]/g, '_');
-    const ts = Date.now();
-    cb(null, `${guest}_${ts}.jpg`);
+app.post('/api/verify-pin/kanban', (req, res) => {
+  const { pin } = req.body;
+  if (pin === ZONES.kanban.pin) {
+    const token = signSession('kanban');
+    res.cookie(ZONES.kanban.cookie, token, {
+      httpOnly: true, maxAge: SESSION_TTL,
+      sameSite: 'lax', secure: true
+    });
+    return res.json({ success: true });
   }
-});
-const upload = multer({
-  storage,
-  limits: { fileSize: 15 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith('image/')) cb(null, true);
-    else cb(new Error('Only images allowed'), false);
-  }
+  return res.json({ success: false, error: 'Incorrect PIN' });
 });
 
-// ── URL helpers ─────────────────────────────────────────────────
-function getHttpUrl()  { return `http://${HOST_IP}:${PORT}`; }
-function getHttpsUrl() { return `https://${HOST_IP}:${HTTPS_PORT}`; }
+// ── Portal (public) ─────────────────────────────────────────────
+app.get('/', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'portal.html'));
+});
 
-// ── Routes ──────────────────────────────────────────────────────
+// ── Photobooth Zone (protected) ─────────────────────────────────
+const photoAuth = createAuthMiddleware('photobooth');
 
-// Upload photo
-app.post('/api/upload', upload.single('photo'), (req, res) => {
+// Photobooth login page is served as static (public path handled in middleware)
+app.get('/photobooth/login.html', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'login.html'));
+});
+
+// Photobooth static files (behind auth)
+app.use('/photobooth', photoAuth, express.static(path.join(__dirname, 'public')));
+app.use('/photos', photoAuth, express.static(PHOTOS_DIR));
+
+// Photobooth API routes (behind auth)
+app.post('/api/upload', photoAuth, (() => {
+  const storage = multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, PHOTOS_DIR),
+    filename: (req, file, cb) => {
+      const guest = (req.body.guestName || 'guest').replace(/[^a-zA-Z0-9]/g, '_');
+      const ts = Date.now();
+      cb(null, `${guest}_${ts}.jpg`);
+    }
+  });
+  const upload = multer({
+    storage,
+    limits: { fileSize: 15 * 1024 * 1024 },
+    fileFilter: (_req, file, cb) => {
+      if (file.mimetype.startsWith('image/')) cb(null, true);
+      else cb(new Error('Only images allowed'), false);
+    }
+  });
+  return upload.single('photo');
+})(), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No photo provided' });
   const photoUrl = `/photos/${req.file.filename}`;
   console.log(`📸 New photo: ${req.file.filename} (${(req.file.size / 1024).toFixed(0)}KB)`);
   res.json({ success: true, url: photoUrl, message: 'Photo uploaded successfully! 💍' });
 });
 
-// Get all photos (for gallery + slideshow)
-app.get('/api/photos', (req, res) => {
+app.get('/api/photos', photoAuth, (req, res) => {
   try {
     const files = fs.readdirSync(PHOTOS_DIR)
       .filter(f => /\.(jpg|jpeg|png|webp)$/i.test(f))
@@ -188,20 +232,18 @@ app.get('/api/photos', (req, res) => {
   }
 });
 
-// Wedding config + network info
-app.get('/api/config', (req, res) => {
+app.get('/api/config', photoAuth, (req, res) => {
   res.json({
     coupleNames: COUPLE_NAMES,
     weddingDate: WEDDING_DATE,
     hashtag: WEDDING_HASHTAG,
     hostIp: HOST_IP,
-    httpUrl: getHttpUrl(),
-    httpsUrl: getHttpsUrl()
+    httpUrl: `http://${HOST_IP}:${PORT}`,
+    httpsUrl: `https://${HOST_IP}:${HTTPS_PORT}`
   });
 });
 
-// Generate QR code image
-app.get('/api/qrcode', async (req, res) => {
+app.get('/api/qrcode', photoAuth, async (req, res) => {
   try {
     const ip = req.query.ip || HOST_IP;
     const qrUrl = `https://${ip}:${HTTPS_PORT}`;
@@ -215,21 +257,194 @@ app.get('/api/qrcode', async (req, res) => {
   }
 });
 
+// ── Kanban Zone (protected) ─────────────────────────────────────
+const kanbanAuth = createAuthMiddleware('kanban');
+
+// Kanban login page
+app.get('/kanban/login.html', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'kanban', 'login.html'));
+});
+
+// Kanban static files
+app.use('/kanban', kanbanAuth, express.static(path.join(__dirname, 'public', 'kanban')));
+
+// ── Tasks CRUD API (behind kanban auth) ─────────────────────────
+app.get('/api/tasks', kanbanAuth, (req, res) => {
+  res.json({ tasks: loadTasks() });
+});
+
+app.post('/api/tasks', kanbanAuth, (req, res) => {
+  const { title, description, color, column } = req.body;
+  if (!title) return res.status(400).json({ error: 'Title required' });
+
+  const tasks = loadTasks();
+  const task = {
+    id: crypto.randomUUID(),
+    title,
+    description: description || '',
+    color: color || 'blue',
+    column: column || 'todo',
+    cronId: req.body.cronId || null,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+  tasks.push(task);
+  saveTasks(tasks);
+  res.json({ success: true, task });
+});
+
+app.put('/api/tasks/:id', kanbanAuth, (req, res) => {
+  const tasks = loadTasks();
+  const idx = tasks.findIndex(t => t.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: 'Task not found' });
+
+  const { title, description, color, column } = req.body;
+  if (title !== undefined) tasks[idx].title = title;
+  if (description !== undefined) tasks[idx].description = description;
+  if (color !== undefined) tasks[idx].color = color;
+  if (column !== undefined) tasks[idx].column = column;
+  tasks[idx].updatedAt = new Date().toISOString();
+
+  saveTasks(tasks);
+  res.json({ success: true, task: tasks[idx] });
+});
+
+app.delete('/api/tasks/:id', kanbanAuth, (req, res) => {
+  let tasks = loadTasks();
+  const idx = tasks.findIndex(t => t.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: 'Task not found' });
+
+  tasks.splice(idx, 1);
+  saveTasks(tasks);
+  res.json({ success: true });
+});
+
+// ── Cron Job Proxy API (behind kanban auth) ─────────────────────
+const HERMES_API = process.env.HERMES_API || 'http://localhost:3030';
+
+async function hermesRequest(method, endpoint, body) {
+  return new Promise((resolve, reject) => {
+    const url = new URL(endpoint, HERMES_API);
+    const options = {
+      method,
+      hostname: url.hostname,
+      port: url.port,
+      path: url.pathname + url.search,
+      headers: { 'Content-Type': 'application/json' }
+    };
+
+    const req = http.request(options, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        try { resolve(JSON.parse(data)); }
+        catch { resolve({ raw: data }); }
+      });
+    });
+    req.on('error', reject);
+    if (body) req.write(JSON.stringify(body));
+    req.end();
+  });
+}
+
+app.get('/api/cron', kanbanAuth, async (req, res) => {
+  try {
+    // Use Hermes CLI to get cron jobs
+    const { execSync } = require('child_process');
+    const output = execSync('hermes cron list --json 2>/dev/null || echo "[]"', {
+      timeout: 10000,
+      encoding: 'utf8'
+    });
+    let jobs = [];
+    try { jobs = JSON.parse(output); } catch { jobs = []; }
+    res.json({ jobs: Array.isArray(jobs) ? jobs : [] });
+  } catch (err) {
+    console.error('Cron list error:', err.message);
+    res.json({ jobs: [] });
+  }
+});
+
+app.post('/api/cron', kanbanAuth, async (req, res) => {
+  try {
+    const { name, schedule, prompt, deliver } = req.body;
+    const { execSync } = require('child_process');
+    const args = [
+      'hermes', 'cron', 'create',
+      '--name', JSON.stringify(name),
+      '--schedule', JSON.stringify(schedule),
+      '--prompt', JSON.stringify(prompt)
+    ];
+    if (deliver) args.push('--deliver', deliver);
+    const output = execSync(args.join(' '), { timeout: 15000, encoding: 'utf8' });
+    res.json({ success: true, output });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/cron/:id/:action', kanbanAuth, async (req, res) => {
+  try {
+    const { id, action } = req.params;
+    if (!['pause', 'resume', 'run'].includes(action)) {
+      return res.status(400).json({ error: 'Invalid action' });
+    }
+    const { execSync } = require('child_process');
+    const output = execSync(`hermes cron ${action} ${id}`, { timeout: 10000, encoding: 'utf8' });
+    res.json({ success: true, output });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/cron/:id', kanbanAuth, async (req, res) => {
+  try {
+    const { name, schedule, prompt, deliver } = req.body;
+    const { execSync } = require('child_process');
+    const args = ['hermes', 'cron', 'update', req.params.id];
+    if (name) args.push('--name', JSON.stringify(name));
+    if (schedule) args.push('--schedule', JSON.stringify(schedule));
+    if (prompt) args.push('--prompt', JSON.stringify(prompt));
+    if (deliver) args.push('--deliver', deliver);
+    const output = execSync(args.join(' '), { timeout: 15000, encoding: 'utf8' });
+    res.json({ success: true, output });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/cron/:id', kanbanAuth, async (req, res) => {
+  try {
+    const { execSync } = require('child_process');
+    const output = execSync(`hermes cron remove ${req.params.id}`, { timeout: 10000, encoding: 'utf8' });
+    res.json({ success: true, output });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Ensure dirs exist ───────────────────────────────────────────
+if (!fs.existsSync(PHOTOS_DIR)) fs.mkdirSync(PHOTOS_DIR, { recursive: true });
+
+// ── URL helpers ─────────────────────────────────────────────────
+function getHttpUrl()  { return `http://${HOST_IP}:${PORT}`; }
+function getHttpsUrl() { return `https://${HOST_IP}:${HTTPS_PORT}`; }
+
 // ── Start servers ───────────────────────────────────────────────
 http.createServer(app).listen(PORT, '0.0.0.0', () => {
   console.log('');
   console.log('╔════════════════════════════════════════════════════════════╗');
-  console.log('║            💒 WEDDING PHOTOBOOTH READY 💒                 ║');
+  console.log('║              ⚡ JONATHAN\'S HUB — READY ⚡                 ║');
   console.log('╠════════════════════════════════════════════════════════════╣');
   console.log(`║  Detected IP:  ${HOST_IP.padEnd(44)} ║`);
   console.log(`║  HTTP:         ${getHttpUrl().padEnd(44)} ║`);
-  console.log(`║  Couple:       ${COUPLE_NAMES.padEnd(44)} ║`);
-  console.log(`║  Date:         ${WEDDING_DATE.padEnd(44)} ║`);
-  console.log(`║  PIN Protected: YES (set via ACCESS_PIN env)              ║`);
   console.log('╠════════════════════════════════════════════════════════════╣');
-  console.log(`║  📱 Photobooth (guests):  ${getHttpsUrl().padEnd(33)} ║`);
-  console.log(`║  📺 Slideshow (venue TV): ${getHttpUrl().padEnd(33)} ║`);
-  console.log(`║  🖼️  Gallery (everyone):  ${getHttpUrl().padEnd(33)} ║`);
+  console.log(`║  🏠 Portal:       ${getHttpUrl().padEnd(41)} ║`);
+  console.log(`║  📸 Photobooth:   ${(getHttpUrl() + '/photobooth/').padEnd(41)} ║`);
+  console.log(`║  📋 Kanban:       ${(getHttpUrl() + '/kanban/').padEnd(41)} ║`);
+  console.log('╠════════════════════════════════════════════════════════════╣');
+  console.log('║  PIN Zones:                                                ║');
+  console.log(`║    📸 Photobooth: ${ZONES.photobooth.pin.padEnd(41)} ║`);
+  console.log(`║    📋 Kanban:     ${ZONES.kanban.pin.padEnd(41)} ║`);
   console.log('╚════════════════════════════════════════════════════════════╝');
   console.log('');
 });
@@ -244,13 +459,12 @@ if (fs.existsSync(certPath) && fs.existsSync(keyPath)) {
     key: fs.readFileSync(keyPath)
   };
   https.createServer(httpsOptions, app).listen(HTTPS_PORT, '0.0.0.0', () => {
-    console.log(`║  HTTPS server: ${getHttpsUrl().padEnd(44)} ║`);
+    console.log(`║  HTTPS: ${getHttpsUrl().padEnd(52)} ║`);
     console.log('╚════════════════════════════════════════════════════════════╝');
     console.log('');
   });
 } else {
   console.log('║  ⚠️  No cert.pem/key.pem — HTTPS disabled                ║');
-  console.log('║  Camera only works on localhost without HTTPS             ║');
   console.log('╚════════════════════════════════════════════════════════════╝');
   console.log('');
 }

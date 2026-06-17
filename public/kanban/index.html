@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kanban Board</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: #1a1a2e;
+      color: #e0e0e0;
+      min-height: 100vh;
+      overflow-x: auto;
+    }
+
+    /* ── Header ── */
+    .header {
+      background: rgba(15,12,41,0.95);
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      padding: 1rem 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .header-left { display: flex; align-items: center; gap: 1rem; }
+    .header h1 { font-size: 1.3rem; font-weight: 600; }
+    .header h1 span { color: #4facfe; }
+    .header-actions { display: flex; gap: 0.8rem; }
+    .btn {
+      padding: 0.5rem 1rem;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-primary { background: #4facfe; color: #000; }
+    .btn-primary:hover { background: #00f2fe; }
+    .btn-secondary { background: rgba(255,255,255,0.08); color: #ccc; border: 1px solid rgba(255,255,255,0.1); }
+    .btn-secondary:hover { background: rgba(255,255,255,0.15); }
+    .btn-danger { background: rgba(245,87,108,0.2); color: #f5576c; border: 1px solid rgba(245,87,108,0.3); }
+    .btn-danger:hover { background: rgba(245,87,108,0.3); }
+    .btn-small { padding: 0.3rem 0.6rem; font-size: 0.75rem; }
+
+    /* ── Board ── */
+    .board {
+      display: flex;
+      gap: 1.5rem;
+      padding: 1.5rem;
+      min-height: calc(100vh - 70px);
+      align-items: flex-start;
+    }
+    @media (max-width: 768px) {
+      .board { flex-direction: column; padding: 1rem; }
+    }
+
+    /* ── Columns ── */
+    .column {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 16px;
+      min-width: 320px;
+      max-width: 320px;
+      display: flex;
+      flex-direction: column;
+      max-height: calc(100vh - 100px);
+    }
+    @media (max-width: 768px) {
+      .column { min-width: 100%; max-width: 100%; }
+    }
+    .column-header {
+      padding: 1rem 1.2rem;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .column-title {
+      font-size: 0.95rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .column-count {
+      background: rgba(255,255,255,0.1);
+      border-radius: 10px;
+      padding: 0.15rem 0.5rem;
+      font-size: 0.75rem;
+      color: #888;
+    }
+    .column-cards {
+      padding: 0.8rem;
+      flex: 1;
+      overflow-y: auto;
+      min-height: 100px;
+    }
+    .column-cards.drag-over {
+      background: rgba(79,172,254,0.05);
+      border-radius: 0 0 16px 16px;
+    }
+
+    /* ── Cards ── */
+    .card {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 12px;
+      padding: 1rem;
+      margin-bottom: 0.6rem;
+      cursor: grab;
+      transition: all 0.2s;
+      position: relative;
+    }
+    .card:hover {
+      background: rgba(255,255,255,0.1);
+      border-color: rgba(255,255,255,0.15);
+    }
+    .card.dragging { opacity: 0.4; transform: rotate(2deg); }
+    .card-title {
+      font-size: 0.9rem;
+      font-weight: 600;
+      margin-bottom: 0.3rem;
+      padding-right: 2rem;
+    }
+    .card-desc {
+      font-size: 0.8rem;
+      color: #888;
+      line-height: 1.4;
+    }
+    .card-meta {
+      display: flex;
+      gap: 0.4rem;
+      margin-top: 0.6rem;
+      flex-wrap: wrap;
+    }
+    .tag {
+      font-size: 0.7rem;
+      padding: 0.15rem 0.5rem;
+      border-radius: 6px;
+      font-weight: 600;
+    }
+    .tag-cron { background: rgba(79,172,254,0.15); color: #4facfe; }
+    .tag-task { background: rgba(240,147,251,0.15); color: #f093fb; }
+    .tag-green { background: rgba(0,230,118,0.15); color: #00e676; }
+    .tag-yellow { background: rgba(255,214,0,0.15); color: #ffd600; }
+    .tag-red { background: rgba(245,87,108,0.15); color: #f5576c; }
+    .card-actions {
+      position: absolute;
+      top: 0.6rem;
+      right: 0.6rem;
+      display: none;
+      gap: 0.3rem;
+    }
+    .card:hover .card-actions { display: flex; }
+    .card-btn {
+      width: 24px;
+      height: 24px;
+      border: none;
+      border-radius: 6px;
+      background: rgba(255,255,255,0.1);
+      color: #aaa;
+      font-size: 0.75rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .card-btn:hover { background: rgba(255,255,255,0.2); color: #fff; }
+    .card-btn.delete:hover { background: rgba(245,87,108,0.3); color: #f5576c; }
+
+    /* ── Modal ── */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.7);
+      z-index: 200;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-overlay.active { display: flex; }
+    .modal {
+      background: #1e1e3a;
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 16px;
+      padding: 2rem;
+      width: 90%;
+      max-width: 450px;
+    }
+    .modal h2 {
+      font-size: 1.2rem;
+      margin-bottom: 1.5rem;
+    }
+    .form-group {
+      margin-bottom: 1rem;
+    }
+    .form-group label {
+      display: block;
+      font-size: 0.85rem;
+      color: #aaa;
+      margin-bottom: 0.3rem;
+    }
+    .form-group input,
+    .form-group textarea,
+    .form-group select {
+      width: 100%;
+      padding: 0.7rem;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      color: #fff;
+      font-size: 0.9rem;
+      font-family: inherit;
+      outline: none;
+    }
+    .form-group input:focus,
+    .form-group textarea:focus { border-color: #4facfe; }
+    .form-group textarea { resize: vertical; min-height: 60px; }
+    .modal-actions {
+      display: flex;
+      gap: 0.8rem;
+      justify-content: flex-end;
+      margin-top: 1.5rem;
+    }
+
+    /* ── Cron Section ── */
+    .cron-panel {
+      background: rgba(79,172,254,0.05);
+      border: 1px solid rgba(79,172,254,0.15);
+      border-radius: 12px;
+      padding: 1rem;
+      margin-bottom: 0.6rem;
+    }
+    .cron-panel h3 {
+      font-size: 0.85rem;
+      color: #4facfe;
+      margin-bottom: 0.6rem;
+    }
+    .cron-job {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.5rem 0;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+      font-size: 0.8rem;
+    }
+    .cron-job:last-child { border-bottom: none; }
+    .cron-job-name { font-weight: 600; }
+    .cron-job-schedule { color: #888; font-size: 0.75rem; }
+    .cron-status { width: 8px; height: 8px; border-radius: 50%; }
+    .cron-status.active { background: #00e676; }
+    .cron-status.paused { background: #ffd600; }
+    .cron-status.error { background: #f5576c; }
+    .cron-actions { display: flex; gap: 0.3rem; }
+    .cron-btn {
+      padding: 0.2rem 0.5rem;
+      border: none;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      cursor: pointer;
+      background: rgba(255,255,255,0.08);
+      color: #aaa;
+    }
+    .cron-btn:hover { background: rgba(255,255,255,0.15); color: #fff; }
+
+    /* ── Toast ── */
+    .toast {
+      position: fixed;
+      bottom: 2rem;
+      right: 2rem;
+      background: #1e1e3a;
+      border: 1px solid rgba(79,172,254,0.3);
+      border-radius: 10px;
+      padding: 0.8rem 1.2rem;
+      font-size: 0.85rem;
+      z-index: 300;
+      opacity: 0;
+      transform: translateY(20px);
+      transition: all 0.3s;
+      pointer-events: none;
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <div class="header">
+    <div class="header-left">
+      <h1>📋 <span>Kanban</span> Board</h1>
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-secondary" onclick="refreshCron()">🔄 Sync Cron</button>
+      <button class="btn btn-primary" onclick="openAddModal('todo')">+ New Task</button>
+      <a href="/" class="btn btn-secondary" style="text-decoration:none">← Hub</a>
+    </div>
+  </div>
+
+  <!-- Board -->
+  <div class="board" id="board">
+    <!-- To Do Column -->
+    <div class="column" data-column="todo">
+      <div class="column-header">
+        <div class="column-title">📝 To Do <span class="column-count" id="count-todo">0</span></div>
+        <button class="btn btn-small btn-primary" onclick="openAddModal('todo')">+</button>
+      </div>
+      <div class="column-cards" id="col-todo"
+           ondragover="handleDragOver(event)" ondrop="handleDrop(event, 'todo')"
+           ondragenter="this.classList.add('drag-over')" ondragleave="this.classList.remove('drag-over')">
+      </div>
+    </div>
+
+    <!-- In Progress Column -->
+    <div class="column" data-column="inprogress">
+      <div class="column-header">
+        <div class="column-title">🔨 In Progress <span class="column-count" id="count-inprogress">0</span></div>
+      </div>
+      <div class="column-cards" id="col-inprogress"
+           ondragover="handleDragOver(event)" ondrop="handleDrop(event, 'inprogress')"
+           ondragenter="this.classList.add('drag-over')" ondragleave="this.classList.remove('drag-over')">
+      </div>
+    </div>
+
+    <!-- Done Column -->
+    <div class="column" data-column="done">
+      <div class="column-header">
+        <div class="column-title">✅ Done <span class="column-count" id="count-done">0</span></div>
+      </div>
+      <div class="column-cards" id="col-done"
+           ondragover="handleDragOver(event)" ondrop="handleDrop(event, 'done')"
+           ondragenter="this.classList.add('drag-over')" ondragleave="this.classList.remove('drag-over')">
+      </div>
+    </div>
+
+    <!-- Cron Jobs Column -->
+    <div class="column" data-column="cron" style="min-width:350px;max-width:350px;">
+      <div class="column-header">
+        <div class="column-title">⏰ Cron Jobs <span class="column-count" id="count-cron">0</span></div>
+        <button class="btn btn-small btn-secondary" onclick="refreshCron()">🔄</button>
+      </div>
+      <div class="column-cards" id="col-cron">
+        <div style="text-align:center;padding:2rem;color:#555;">Loading cron jobs...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add/Edit Task Modal -->
+  <div class="modal-overlay" id="taskModal">
+    <div class="modal">
+      <h2 id="modalTitle">Add New Task</h2>
+      <input type="hidden" id="taskId">
+      <input type="hidden" id="taskColumn">
+      <div class="form-group">
+        <label>Title</label>
+        <input type="text" id="taskTitleInput" placeholder="What needs to be done?" autofocus>
+      </div>
+      <div class="form-group">
+        <label>Description</label>
+        <textarea id="taskDescInput" placeholder="Details..."></textarea>
+      </div>
+      <div class="form-group">
+        <label>Color Label</label>
+        <select id="taskColor">
+          <option value="blue">🔵 Blue</option>
+          <option value="green">🟢 Green</option>
+          <option value="yellow">🟡 Yellow</option>
+          <option value="red">🔴 Red</option>
+          <option value="purple">🟣 Purple</option>
+        </select>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveTask()">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Cron Job Modal -->
+  <div class="modal-overlay" id="cronModal">
+    <div class="modal">
+      <h2 id="cronModalTitle">Create Cron Job</h2>
+      <input type="hidden" id="cronJobId">
+      <div class="form-group">
+        <label>Name</label>
+        <input type="text" id="cronName" placeholder="e.g. Daily Stock Check">
+      </div>
+      <div class="form-group">
+        <label>Schedule (cron or interval)</label>
+        <input type="text" id="cronSchedule" placeholder="e.g. 0 9 * * * or 30m">
+      </div>
+      <div class="form-group">
+        <label>Prompt / Task</label>
+        <textarea id="cronPrompt" placeholder="What should the agent do?"></textarea>
+      </div>
+      <div class="form-group">
+        <label>Deliver to</label>
+        <select id="cronDeliver">
+          <option value="origin">Origin chat</option>
+          <option value="telegram">Telegram home</option>
+          <option value="local">Local only</option>
+        </select>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="closeCronModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveCronJob()">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <script>
+    // ── State ──────────────────────────────────────────────────
+    let tasks = [];
+    let cronJobs = [];
+    let draggedCard = null;
+
+    const COLOR_MAP = {
+      blue: '#4facfe',
+      green: '#00e676',
+      yellow: '#ffd600',
+      red: '#f5576c',
+      purple: '#f093fb'
+    };
+
+    // ── Load Data ──────────────────────────────────────────────
+    async function loadTasks() {
+      try {
+        const res = await fetch('/api/tasks');
+        const data = await res.json();
+        tasks = data.tasks || [];
+        renderBoard();
+      } catch (err) {
+        console.error('Failed to load tasks:', err);
+      }
+    }
+
+    async function refreshCron() {
+      try {
+        const res = await fetch('/api/cron');
+        const data = await res.json();
+        cronJobs = data.jobs || [];
+        renderCron();
+        toast('🔄 Cron jobs synced');
+      } catch (err) {
+        console.error('Failed to load cron jobs:', err);
+        toast('❌ Failed to sync cron jobs');
+      }
+    }
+
+    // ── Render Board ───────────────────────────────────────────
+    function renderBoard() {
+      ['todo', 'inprogress', 'done'].forEach(col => {
+        const container = document.getElementById(`col-${col}`);
+        const colTasks = tasks.filter(t => t.column === col);
+        document.getElementById(`count-${col}`).textContent = colTasks.length;
+
+        if (colTasks.length === 0) {
+          container.innerHTML = '<div style="text-align:center;padding:2rem;color:#444;font-size:0.85rem;">Drop tasks here</div>';
+          return;
+        }
+
+        container.innerHTML = colTasks.map(t => `
+          <div class="card" draggable="true"
+               ondragstart="handleDragStart(event, '${t.id}')"
+               ondragend="handleDragEnd(event)"
+               data-id="${t.id}">
+            <div class="card-actions">
+              <button class="card-btn" onclick="editTask('${t.id}')" title="Edit">✏️</button>
+              <button class="card-btn delete" onclick="deleteTask('${t.id}')" title="Delete">🗑️</button>
+            </div>
+            <div class="card-title" style="border-left: 3px solid ${COLOR_MAP[t.color] || '#4facfe'}; padding-left: 0.6rem;">
+              ${escapeHtml(t.title)}
+            </div>
+            ${t.description ? `<div class="card-desc">${escapeHtml(t.description)}</div>` : ''}
+            <div class="card-meta">
+              <span class="tag tag-task">task</span>
+              ${t.cronId ? '<span class="tag tag-cron">⏰ cron linked</span>' : ''}
+            </div>
+          </div>
+        `).join('');
+      });
+    }
+
+    // ── Render Cron Jobs ───────────────────────────────────────
+    function renderCron() {
+      const container = document.getElementById('col-cron');
+      document.getElementById('count-cron').textContent = cronJobs.length;
+
+      if (cronJobs.length === 0) {
+        container.innerHTML = '<div style="text-align:center;padding:2rem;color:#444;font-size:0.85rem;">No cron jobs found</div>';
+        return;
+      }
+
+      container.innerHTML = cronJobs.map(j => {
+        const status = j.enabled !== false ? 'active' : 'paused';
+        return `
+          <div class="cron-panel">
+            <h3>${escapeHtml(j.name || j.job_id || 'Unnamed')}</h3>
+            <div class="cron-job">
+              <div>
+                <div class="cron-job-name">${escapeHtml(j.prompt || '').substring(0, 60)}${(j.prompt||'').length > 60 ? '...' : ''}</div>
+                <div class="cron-job-schedule">📅 ${escapeHtml(j.schedule || 'N/A')} &nbsp; <span class="cron-status ${status}"></span> ${status}</div>
+              </div>
+              <div class="cron-actions">
+                <button class="cron-btn" onclick="toggleCron('${j.job_id}', ${j.enabled === false ? 'true' : 'false'})" title="${j.enabled === false ? 'Resume' : 'Pause'}">
+                  ${j.enabled === false ? '▶️' : '⏸️'}
+                </button>
+                <button class="cron-btn" onclick="runCron('${j.job_id}')" title="Run now">🚀</button>
+                <button class="cron-btn" onclick="createTaskFromCron('${j.job_id}', '${escapeHtml(j.name || j.job_id || 'Cron job')}')" title="Create task">📝</button>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // ── Drag & Drop ────────────────────────────────────────────
+    function handleDragStart(e, id) {
+      draggedCard = id;
+      e.target.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    }
+    function handleDragEnd(e) {
+      e.target.classList.remove('dragging');
+      document.querySelectorAll('.column-cards').forEach(c => c.classList.remove('drag-over'));
+    }
+    function handleDragOver(e) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+    }
+    async function handleDrop(e, column) {
+      e.preventDefault();
+      e.currentTarget.classList.remove('drag-over');
+      if (!draggedCard) return;
+
+      const task = tasks.find(t => t.id === draggedCard);
+      if (task && task.column !== column) {
+        task.column = column;
+        await fetch(`/api/tasks/${draggedCard}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ column })
+        });
+        renderBoard();
+        toast(`Moved to ${column === 'todo' ? 'To Do' : column === 'inprogress' ? 'In Progress' : 'Done'}`);
+      }
+      draggedCard = null;
+    }
+
+    // ── Task CRUD ──────────────────────────────────────────────
+    function openAddModal(column) {
+      document.getElementById('modalTitle').textContent = 'Add New Task';
+      document.getElementById('taskId').value = '';
+      document.getElementById('taskColumn').value = column;
+      document.getElementById('taskTitleInput').value = '';
+      document.getElementById('taskDescInput').value = '';
+      document.getElementById('taskColor').value = 'blue';
+      document.getElementById('taskModal').classList.add('active');
+      setTimeout(() => document.getElementById('taskTitleInput').focus(), 100);
+    }
+
+    function editTask(id) {
+      const task = tasks.find(t => t.id === id);
+      if (!task) return;
+      document.getElementById('modalTitle').textContent = 'Edit Task';
+      document.getElementById('taskId').value = task.id;
+      document.getElementById('taskColumn').value = task.column;
+      document.getElementById('taskTitleInput').value = task.title;
+      document.getElementById('taskDescInput').value = task.description || '';
+      document.getElementById('taskColor').value = task.color || 'blue';
+      document.getElementById('taskModal').classList.add('active');
+      setTimeout(() => document.getElementById('taskTitleInput').focus(), 100);
+    }
+
+    function closeModal() {
+      document.getElementById('taskModal').classList.remove('active');
+    }
+
+    async function saveTask() {
+      const id = document.getElementById('taskId').value;
+      const column = document.getElementById('taskColumn').value;
+      const title = document.getElementById('taskTitleInput').value.trim();
+      const description = document.getElementById('taskDescInput').value.trim();
+      const color = document.getElementById('taskColor').value;
+
+      if (!title) { toast('❌ Title is required'); return; }
+
+      if (id) {
+        // Update
+        await fetch(`/api/tasks/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title, description, color, column })
+        });
+        toast('✅ Task updated');
+      } else {
+        // Create
+        await fetch('/api/tasks', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title, description, color, column })
+        });
+        toast('✅ Task created');
+      }
+      closeModal();
+      await loadTasks();
+    }
+
+    async function deleteTask(id) {
+      if (!confirm('Delete this task?')) return;
+      await fetch(`/api/tasks/${id}`, { method: 'DELETE' });
+      toast('🗑️ Task deleted');
+      await loadTasks();
+    }
+
+    function createTaskFromCron(cronId, name) {
+      openAddModal('todo');
+      document.getElementById('taskTitleInput').value = `Follow up: ${name}`;
+      document.getElementById('taskDescInput').value = `Linked to cron job: ${cronId}`;
+    }
+
+    // ── Cron Actions ───────────────────────────────────────────
+    async function toggleCron(jobId, resume) {
+      const action = resume ? 'resume' : 'pause';
+      await fetch(`/api/cron/${jobId}/${action}`, { method: 'POST' });
+      toast(`${resume ? '▶️ Resumed' : '⏸️ Paused'} cron job`);
+      await refreshCron();
+    }
+
+    async function runCron(jobId) {
+      toast('🚀 Running cron job...');
+      await fetch(`/api/cron/${jobId}/run`, { method: 'POST' });
+      toast('✅ Cron job triggered');
+    }
+
+    function openCronModal() {
+      document.getElementById('cronModalTitle').textContent = 'Create Cron Job';
+      document.getElementById('cronJobId').value = '';
+      document.getElementById('cronName').value = '';
+      document.getElementById('cronSchedule').value = '';
+      document.getElementById('cronPrompt').value = '';
+      document.getElementById('cronDeliver').value = 'origin';
+      document.getElementById('cronModal').classList.add('active');
+    }
+
+    function closeCronModal() {
+      document.getElementById('cronModal').classList.remove('active');
+    }
+
+    async function saveCronJob() {
+      const id = document.getElementById('cronJobId').value;
+      const name = document.getElementById('cronName').value.trim();
+      const schedule = document.getElementById('cronSchedule').value.trim();
+      const prompt = document.getElementById('cronPrompt').value.trim();
+      const deliver = document.getElementById('cronDeliver').value;
+
+      if (!name || !schedule || !prompt) { toast('❌ All fields required'); return; }
+
+      if (id) {
+        await fetch(`/api/cron/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, schedule, prompt, deliver })
+        });
+      } else {
+        await fetch('/api/cron', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, schedule, prompt, deliver })
+        });
+      }
+      closeCronModal();
+      toast('✅ Cron job saved');
+      await refreshCron();
+    }
+
+    // ── Helpers ────────────────────────────────────────────────
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str || '';
+      return div.innerHTML;
+    }
+
+    function toast(msg) {
+      const el = document.getElementById('toast');
+      el.textContent = msg;
+      el.classList.add('show');
+      setTimeout(() => el.classList.remove('show'), 2500);
+    }
+
+    // ── Keyboard shortcuts ─────────────────────────────────────
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        closeModal();
+        closeCronModal();
+      }
+      if (e.key === 'n' && !e.ctrlKey && !e.metaKey && !document.querySelector('.modal-overlay.active')) {
+        e.preventDefault();
+        openAddModal('todo');
+      }
+    });
+
+    // Close modals on overlay click
+    document.querySelectorAll('.modal-overlay').forEach(el => {
+      el.addEventListener('click', (e) => {
+        if (e.target === el) { closeModal(); closeCronModal(); }
+      });
+    });
+
+    // ── Init ───────────────────────────────────────────────────
+    loadTasks();
+    refreshCron();
+  </script>
+</body>
+</html>

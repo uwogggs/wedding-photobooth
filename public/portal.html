@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Jonathan's Hub</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+    }
+    .portal-container {
+      text-align: center;
+      padding: 2rem;
+      max-width: 800px;
+      width: 100%;
+    }
+    .portal-title {
+      font-size: 2.5rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+      background: linear-gradient(135deg, #f093fb, #f5576c, #4facfe);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .portal-subtitle {
+      font-size: 1.1rem;
+      color: #8888aa;
+      margin-bottom: 3rem;
+    }
+    .cards {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2rem;
+    }
+    @media (max-width: 600px) {
+      .cards { grid-template-columns: 1fr; }
+      .portal-title { font-size: 1.8rem; }
+    }
+    .card {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 20px;
+      padding: 2.5rem 2rem;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      text-decoration: none;
+      color: #fff;
+      display: block;
+    }
+    .card:hover {
+      transform: translateY(-8px);
+      background: rgba(255,255,255,0.1);
+      border-color: rgba(255,255,255,0.25);
+      box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+    }
+    .card-icon {
+      font-size: 4rem;
+      margin-bottom: 1rem;
+      display: block;
+    }
+    .card-title {
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+    }
+    .card-desc {
+      font-size: 0.95rem;
+      color: #8888aa;
+      line-height: 1.5;
+    }
+    .card-badge {
+      display: inline-block;
+      margin-top: 1rem;
+      padding: 0.3rem 0.8rem;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+    .badge-photo { background: rgba(240,147,251,0.2); color: #f093fb; }
+    .badge-kanban { background: rgba(79,172,254,0.2); color: #4facfe; }
+    .footer {
+      margin-top: 3rem;
+      font-size: 0.85rem;
+      color: #555;
+    }
+  </style>
+</head>
+<body>
+  <div class="portal-container">
+    <h1 class="portal-title">⚡ Jonathan's Hub</h1>
+    <p class="portal-subtitle">Choose what you need</p>
+
+    <div class="cards">
+      <a href="/photobooth/login.html" class="card">
+        <span class="card-icon">📸</span>
+        <div class="card-title">Wedding Photobooth</div>
+        <div class="card-desc">Capture moments with frames, overlays, and a live slideshow gallery</div>
+        <span class="card-badge badge-photo">🔒 PIN Protected</span>
+      </a>
+
+      <a href="/kanban/login.html" class="card">
+        <span class="card-icon">📋</span>
+        <div class="card-title">Kanban Board</div>
+        <div class="card-desc">Manage tasks, jobs, and cron schedules — drag, drop, and get things done</div>
+        <span class="card-badge badge-kanban">🔒 PIN Protected</span>
+      </a>
+    </div>
+
+    <div class="footer">
+      Built with ❤️ by Jonathan
+    </div>
+  </div>
+</body>
+</html>

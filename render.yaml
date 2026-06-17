@@ -6,7 +6,11 @@ services:
     buildCommand: npm install
     startCommand: node server.js
     envVars:
-      - key: ACCESS_PIN
+      - key: PHOTOBOOTH_PIN
         value: "111283"
+      - key: KANBAN_PIN
+        value: "680283"
+      - key: SESSION_SECRET
+        value: "jonathan-hub-2026-static-secret"
       - key: NODE_ENV
         value: production

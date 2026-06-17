@@ -85,20 +85,21 @@
       <button type="submit" class="btn">Enter</button>
     </form>
     <div class="error" id="error">Incorrect PIN. Please try again.</div>
+    <p style="margin-top:16px;font-size:0.85em;"><a href="/" style="color:#b8a088;text-decoration:none;">← Back to Hub</a></p>
   </div>
   <script>
     document.getElementById('pinForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       const pin = document.getElementById('pinInput').value;
       try {
-        const res = await fetch('/api/verify-pin', {
+        const res = await fetch('/api/verify-pin/photobooth', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ pin })
         });
         const data = await res.json();
         if (data.success) {
-          window.location.href = '/';
+          window.location.href = '/photobooth/';
         } else {
           document.getElementById('error').classList.add('show');
           document.getElementById('pinInput').value = '';
