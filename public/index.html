@@ -345,7 +345,7 @@
 
   <!-- Name input -->
   <div class="name-input-area">
-    <input type="text" id="guestName" placeholder="Your name (optional)" maxlength="30" autocomplete="off">
+    <input type="text" id="guestName" placeholder="Netrust Employee" maxlength="30" autocomplete="off">
   </div>
 
   <!-- Controls -->
@@ -501,8 +501,14 @@
       }
       ctx.drawImage(video, 0, 0);
 
+      // Reset transform so frame/text draws un-mirrored
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+
       // Draw frame on canvas (for the saved photo)
       drawFrameOnCanvas(ctx, canvas.width, canvas.height);
+
+      // Draw guest name + hashtag
+      drawTextOverlay(ctx, canvas.width, canvas.height);
 
       // Convert to blob
       canvas.toBlob(blob => {
@@ -516,10 +522,6 @@
       if (currentFrame === 'none') return;
 
       ctx.save();
-      if (facingMode === 'user') {
-        ctx.translate(w, 0);
-        ctx.scale(-1, 1);
-      }
 
       if (currentFrame === 'gold') {
         ctx.strokeStyle = '#d4a853';
@@ -549,6 +551,41 @@
         ctx.textAlign = 'center';
         ctx.fillText('🌸 🌷 🌸', w/2, h*0.96);
       }
+      ctx.restore();
+    }
+
+    function drawTextOverlay(ctx, w, h) {
+      ctx.save();
+      const fontSize = Math.min(w, h) * 0.05;
+      const padding = Math.min(w, h) * 0.03;
+
+      // Semi-transparent banner backgrounds
+      const bannerH = fontSize * 2.2;
+
+      // ── Top banner: Guest name ──
+      const guestName = document.getElementById('guestName').value.trim() || 'Netrust Employee';
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+      ctx.fillRect(0, 0, w, bannerH);
+      ctx.font = `bold ${fontSize}px Georgia, serif`;
+      ctx.fillStyle = '#ffffff';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.shadowColor = 'rgba(0,0,0,0.6)';
+      ctx.shadowBlur = 4;
+      ctx.fillText(guestName, w / 2, bannerH / 2);
+
+      // ── Bottom banner: Hashtag ──
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+      ctx.fillRect(0, h - bannerH, w, bannerH);
+      ctx.font = `bold ${fontSize * 0.85}px Georgia, serif`;
+      ctx.fillStyle = '#d4a853';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.shadowColor = 'rgba(0,0,0,0.6)';
+      ctx.shadowBlur = 4;
+      ctx.fillText('#NetrustXmasParty2026', w / 2, h - bannerH / 2);
+
       ctx.restore();
     }
 
