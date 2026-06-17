@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: wedding-photobooth
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: ACCESS_PIN
+        value: "111283"
+      - key: NODE_ENV
+        value: production
