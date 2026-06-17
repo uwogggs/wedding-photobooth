@@ -97,8 +97,12 @@ app.use((req, _res, next) => {
   const cookieHeader = req.headers.cookie;
   if (cookieHeader) {
     cookieHeader.split(';').forEach(c => {
-      const [key, val] = c.trim().split('=');
-      if (key && val) req.cookies[key] = val;
+      const eqIdx = c.indexOf('=');
+      if (eqIdx > 0) {
+        const key = c.substring(0, eqIdx).trim();
+        const val = decodeURIComponent(c.substring(eqIdx + 1).trim());
+        req.cookies[key] = val;
+      }
     });
   }
   next();
