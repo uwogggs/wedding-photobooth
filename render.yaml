@@ -12,5 +12,7 @@ services:
         value: "680283"
       - key: SESSION_SECRET
         value: "jonathan-hub-2026-static-secret"
+      - key: SYNC_API_KEY
+        value: "hermes-sync-2026-secure-key"
       - key: NODE_ENV
         value: production

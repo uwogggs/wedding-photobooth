@@ -20,6 +20,10 @@ const WEDDING_HASHTAG = '#NetrustXmasParty2026';
 const PHOTOS_DIR = path.join(__dirname, 'photos');
 const TASKS_FILE = path.join(__dirname, 'tasks.json');
 const CRON_FILE = path.join(__dirname, 'cron.json');
+const COMMANDS_FILE = path.join(__dirname, 'cron-commands.json');
+
+// ── Sync API Key (for local Hermes agent to authenticate) ───────
+const SYNC_API_KEY = process.env.SYNC_API_KEY || 'hermes-sync-2026-secure-key';
 
 // ── PIN Zones ───────────────────────────────────────────────────
 const ZONES = {
@@ -134,6 +138,41 @@ function loadCron() {
 
 function saveCron(jobs) {
   fs.writeFileSync(CRON_FILE, JSON.stringify(jobs, null, 2));
+}
+
+// ── Command Queue ───────────────────────────────────────────────
+function loadCommands() {
+  try {
+    if (fs.existsSync(COMMANDS_FILE)) {
+      return JSON.parse(fs.readFileSync(COMMANDS_FILE, 'utf8'));
+    }
+  } catch (err) {
+    console.error('Failed to load commands:', err.message);
+  }
+  return [];
+}
+
+function saveCommands(cmds) {
+  fs.writeFileSync(COMMANDS_FILE, JSON.stringify(cmds, null, 2));
+}
+
+function addCommand(action, payload) {
+  const cmds = loadCommands();
+  cmds.push({
+    id: crypto.randomUUID().substring(0, 12),
+    action,
+    payload,
+    status: 'pending',
+    created_at: new Date().toISOString()
+  });
+  saveCommands(cmds);
+}
+
+// Sync API key auth middleware
+function syncAuth(req, res, next) {
+  const key = req.headers['x-sync-key'];
+  if (key === SYNC_API_KEY) return next();
+  return res.status(401).json({ error: 'Invalid sync key' });
 }
 
 // ── Middleware ───────────────────────────────────────────────────
@@ -387,6 +426,8 @@ app.post('/api/cron', kanbanAuth, (req, res) => {
   };
   jobs.push(job);
   saveCron(jobs);
+  // Queue command for Hermes sync
+  addCommand('create', { job_id: job.job_id, name, schedule, description, deliver });
   res.json({ success: true, job });
 });
 
@@ -403,6 +444,7 @@ app.put('/api/cron/:id', kanbanAuth, (req, res) => {
   if (status !== undefined) jobs[idx].status = status;
 
   saveCron(jobs);
+  addCommand('update', { job_id: req.params.id, name, schedule, description, deliver, status });
   res.json({ success: true, job: jobs[idx] });
 });
 
@@ -414,11 +456,14 @@ app.post('/api/cron/:id/:action', kanbanAuth, (req, res) => {
 
   if (action === 'pause') {
     jobs[idx].status = 'paused';
+    addCommand('pause', { job_id: id });
   } else if (action === 'resume') {
     jobs[idx].status = 'active';
+    addCommand('resume', { job_id: id });
   } else if (action === 'run') {
     jobs[idx].last_run = new Date().toISOString();
     jobs[idx].last_status = 'triggered';
+    addCommand('run', { job_id: id });
   } else {
     return res.status(400).json({ error: 'Invalid action' });
   }
@@ -432,16 +477,42 @@ app.delete('/api/cron/:id', kanbanAuth, (req, res) => {
   const idx = jobs.findIndex(j => j.job_id === req.params.id);
   if (idx === -1) return res.status(404).json({ error: 'Job not found' });
 
+  const deleted = jobs[idx];
   jobs.splice(idx, 1);
   saveCron(jobs);
+  addCommand('delete', { job_id: req.params.id, name: deleted.name });
   res.json({ success: true });
 });
 
-// Sync endpoint — accepts full cron list from external source (e.g. Hermes agent)
-app.post('/api/cron/sync', kanbanAuth, (req, res) => {
+// ── Sync Endpoints (for local Hermes agent) ─────────────────────
+
+// Fetch pending commands
+app.get('/api/sync/commands', syncAuth, (req, res) => {
+  const cmds = loadCommands().filter(c => c.status === 'pending');
+  res.json({ commands: cmds });
+});
+
+// Acknowledge processed commands
+app.post('/api/sync/commands/:id/ack', syncAuth, (req, res) => {
+  const cmds = loadCommands();
+  const idx = cmds.findIndex(c => c.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: 'Command not found' });
+  cmds[idx].status = 'done';
+  cmds[idx].processed_at = new Date().toISOString();
+  saveCommands(cmds);
+  res.json({ success: true });
+});
+
+// Push current Hermes cron state (replaces cron.json with real data)
+app.post('/api/sync/push', syncAuth, (req, res) => {
   const { jobs } = req.body;
   if (!Array.isArray(jobs)) return res.status(400).json({ error: 'jobs array required' });
   saveCron(jobs);
+  // Clean up old processed commands (keep last 50)
+  const cmds = loadCommands();
+  const pending = cmds.filter(c => c.status === 'pending');
+  const recent_done = cmds.filter(c => c.status === 'done').slice(-50);
+  saveCommands([...pending, ...recent_done]);
   res.json({ success: true, count: jobs.length });
 });
 
